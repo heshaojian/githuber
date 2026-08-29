@@ -17,6 +17,56 @@ const toDay = time.getDate();
 const toWeek = Math.ceil((((new Date() - year) / 86400000) + year.getDay() + 1) / 7);
 const toMonth = time.getMonth() + 1;
 
+const REPO_MATCHER = /^https:\/\/github\.com\/([^/]+)\/([^/?#]+)/;
+
+const toNumber = (value) => {
+    if (typeof value === 'number') return value;
+    if (typeof value !== 'string') return 0;
+
+    const normalised = value.trim().replace(/,/g, '').toLowerCase();
+    const match = normalised.match(/^([\d.]+)\s*([km])?$/);
+
+    if (!match) return Number(normalised.replace(/[^\d]/g, '')) || 0;
+
+    const multiplier = match[2] === 'm' ? 1000000 : match[2] === 'k' ? 1000 : 1;
+
+    return Math.round(Number(match[1]) * multiplier) || 0;
+};
+
+const getRepoFullName = (repo) => {
+    const match = repo.url && repo.url.match(REPO_MATCHER);
+
+    if (match) return `${match[1]}/${match[2]}`;
+    if (repo.author && repo.name) return `${repo.author}/${repo.name}`;
+
+    return '';
+};
+
+const fetchRepoStats = async (repo) => {
+    const fullName = getRepoFullName(repo);
+
+    if (!fullName) return repo;
+    if (toNumber(repo.stars) > 0 && toNumber(repo.forks) > 0) return repo;
+
+    try {
+        const stats = await get(`https://api.github.com/repos/${fullName}`);
+
+        return {
+            ...repo,
+            stars: toNumber(repo.stars) || stats.stargazers_count || 0,
+            forks: toNumber(repo.forks) || stats.forks_count || 0,
+        };
+    } catch (e) {
+        return repo;
+    }
+};
+
+const enrichRepoStats = async (repos, type) => {
+    if (type !== 'repositories') return repos;
+
+    return Promise.map(repos, fetchRepoStats, { concurrency: 6 });
+};
+
 const fetchTrendingRepos = async (lang, since, type = 'repositories') => {
     console.log(lang);
     const data = await get(`https://gtrend.infly.io/${type}?language=${encodeURIComponent(lang)}&since=${since}`);
@@ -35,7 +85,7 @@ const fetchTrendingRepos = async (lang, since, type = 'repositories') => {
         });
     }
 
-    return data;
+    return enrichRepoStats(data, type);
 };
 
 export const getters = {
@@ -63,8 +113,15 @@ export const actions = {
                 (query.since === 'monthly' && data.toMonth === toMonth)
             )
         ) {
-            commit(types.RECEIVE_GITHUB_TRENDINGS, data.repos);
-            return data.repos;
+            const repos = await enrichRepoStats(data.repos, query.type);
+
+            commit(types.RECEIVE_GITHUB_TRENDINGS, repos);
+            storage.setItem(JSON.stringify(query), {
+                ...data,
+                repos,
+            });
+
+            return repos;
         }
 
         const { since, type } = query;

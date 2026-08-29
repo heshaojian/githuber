@@ -17,7 +17,7 @@
         "default_popup": "./popup.html"
     },
     "content_security_policy": {
-        "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' https://gtrend.infly.io http://suggestion.baidu.com http://nssug.baidu.com http://githuber.zhuowenli.com http://up-z0.qiniu.com"
+        "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' https://gtrend.infly.io https://api.github.com http://suggestion.baidu.com http://nssug.baidu.com http://githuber.zhuowenli.com http://up-z0.qiniu.com"
     },
     "chrome_url_overrides": {
         "newtab": "./index.html"
@@ -27,6 +27,7 @@
     ],
     "host_permissions": [
         "https://gtrend.infly.io/*",
+        "https://api.github.com/repos/*",
         "http://suggestion.baidu.com/*",
         "http://nssug.baidu.com/*",
         "http://githuber.zhuowenli.com/*",
